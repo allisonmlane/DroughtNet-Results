@@ -1,0 +1,267 @@
+---
+title: "DroughtNet Data Analysis Project"
+author: "Allison Lane"
+date edited: "11/23/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r data}
+data <- read.csv("FinalProjData.csv")
+```
+
+```{r packages}
+library(knitr)
+library(tidyverse)
+library(readr)
+library(dplyr)
+library(lubridate)
+library(ggpubr)
+library(rstatix)
+library(FSA)
+library(Hmisc)
+library(kableExtra)
+library(magick)
+library(ggtext)
+library(patchwork)
+```
+# How did flowering rate differ between different seed sources of Salvia mellifera?
+
+```{r question 1 reformatting}
+seed_source <- data %>%
+  filter(Species_Code == "SALMEL", Survey_Season == "May2021", AliveMissingDead == "A") %>% 
+  select(-Date, -Team, -Block, -Plot, -Treatment, -Plant_Number, -Species_Code, -Group_Number, -Height_cm, -Width_cm, -Notes, -AliveMissingDead, -Number_Flowers, -DripRow, -BufferZone, -Survey_Season, -PositionID, -Veg_State, -Replaced)
+```
+
+```{r question 1 summary statistics}
+seed_source_xeric <- seed_source %>% 
+  filter(Seed_Source == "Xeric") %>% 
+  count(Flowering) %>% 
+  pivot_wider(names_from = Flowering, names_sep = "_", values_from = n) %>%
+  mutate(Total = `Flowering` + `Not Flowering`, flower_rate = Flowering/Total) %>% 
+  mutate(Total = `Flowering` + `Not Flowering`, flower_rate = Flowering/Total) %>% 
+    mutate(LowerCI = binconf(x=Flowering, n=Total, alpha=.05)[,2],
+         UpperCI = binconf(x=Flowering, n=Total, alpha=.05)[,3])
+
+seed_source_mesic <- seed_source %>% 
+  filter(Seed_Source == "Mesic") %>% 
+  count(Flowering) %>% 
+  pivot_wider(names_from = Flowering, names_sep = "_", values_from = n) %>%
+  mutate(Total = `Flowering` + `Not Flowering`, flower_rate = Flowering/Total) %>% 
+  mutate(Total = `Flowering` + `Not Flowering`, flower_rate = Flowering/Total) %>% 
+    mutate(LowerCI = binconf(x=Flowering, n=Total, alpha=.05)[,2],
+         UpperCI = binconf(x=Flowering, n=Total, alpha=.05)[,3])
+
+output_table <- rbind(seed_source_mesic, seed_source_xeric)
+output_table$rownames <- c("Mesic", "Xeric")
+final_table <- column_to_rownames(output_table, var = "rownames")
+final_table
+
+output_final_table <- knitr::kable(final_table, col.names = c("Flowering", "Not Flowering", "Total", "Flowering Proportion", "Lower CI", "Upper CI"), align = "cccccc") %>% 
+  kable_classic_2(full_width = F, html_font = "Times New Roman")
+output_final_table
+```
+
+```{r question 1 test}
+ft <- final_table %>% 
+  select(-flower_rate, -Total, -LowerCI, -UpperCI) %>% 
+  fisher.test()
+ft
+```
+
+```{r question 1 figure}
+colors <- c("cadetblue3", "burlywood1")
+plot <- final_table %>% 
+  select(flower_rate)
+q1_plot <- ggplot(plot) +
+  geom_col(aes(x = c("Mesic", "Xeric"), y = flower_rate), fill = c("cadetblue3", "burlywood1"))+
+  labs(y = "Flowering Proportion", x = "Seed Source")+
+  theme_bw()
+q1_plot_final <- q1_plot +
+  theme(text = element_text(family = "Times New Roman", size = 17))
+q1_plot_final
+```
+
+# How did flowering rate differ between water treatments? 
+
+```{r question 2 reformatting}
+water_manipulation <- data %>%
+  filter(Species_Code == "SALMEL", Survey_Season == "May2021", AliveMissingDead == "A") %>% 
+  select(-Date, -Team, -Block, -Plot, -Seed_Source, -Plant_Number, -Species_Code, -Group_Number, -Height_cm, -Width_cm, -Notes, -AliveMissingDead, -Number_Flowers, -DripRow, -BufferZone, -Survey_Season, -PositionID, -Veg_State, -Replaced)
+```
+
+```{r question 2 summary statistics}
+exclusion <- water_manipulation %>% 
+  filter(Treatment == "exclusion") %>% 
+  count(Flowering) %>% 
+  pivot_wider(names_from = Flowering, names_sep = "_", values_from = n) %>%
+  mutate(Total = `Flowering` + `Not Flowering`, flower_rate = Flowering/Total) %>% 
+    mutate(LowerCI = binconf(x=Flowering, n=Total, alpha=.05)[,2],
+         UpperCI = binconf(x=Flowering, n=Total, alpha=.05)[,3])
+
+ambient <- water_manipulation %>% 
+  filter(Treatment == "ambient") %>% 
+  count(Flowering) %>% 
+  pivot_wider(names_from = Flowering, names_sep = "_", values_from = n) %>%
+  mutate(Total = `Flowering` + `Not Flowering`, flower_rate = Flowering/Total) %>% 
+  mutate(Total = `Flowering` + `Not Flowering`, flower_rate = Flowering/Total) %>% 
+    mutate(LowerCI = binconf(x=Flowering, n=Total, alpha=.05)[,2],
+         UpperCI = binconf(x=Flowering, n=Total, alpha=.05)[,3])
+
+irrigation <- water_manipulation %>% 
+  filter(Treatment == "irrigation") %>% 
+  count(Flowering) %>% 
+  pivot_wider(names_from = Flowering, names_sep = "_", values_from = n) %>%
+  mutate(Total = `Flowering` + `Not Flowering`, flower_rate = Flowering/Total) %>% 
+  mutate(Total = `Flowering` + `Not Flowering`, flower_rate = Flowering/Total) %>% 
+    mutate(LowerCI = binconf(x=Flowering, n=Total, alpha=.05)[,2],
+         UpperCI = binconf(x=Flowering, n=Total, alpha=.05)[,3])
+
+water_table <- rbind(exclusion, ambient, irrigation)
+water_table$rownames <- c("Exclusion", "Ambient", "Irrigation")
+final_water <- column_to_rownames(water_table, var = "rownames")
+final_water
+
+knitr::kable(final_water, col.names = c("Flowering", "Not Flowering", "Total", "Flowering Proportion", "Lower CI", "Upper CI"), align = "cccccc") %>% 
+  kable_classic_2(full_width = F, html_font = "Times New Roman")
+```
+
+```{r question 2 test}
+cs <- chisq_test(final_water[,1:2]) %>% 
+  select(-method)
+cs
+
+residuals <- pearson_residuals(cs)
+residuals
+
+knitr::kable(cs, col.names = c("Samples", "$\\chi^{2}$", "$\\textit{p}$", "$\\textit{df}$", "$\\textit{p}$-significance"), align = "ccccc", digits = 32) %>%
+  kable_classic_2(full_width = F, html_font = "Times New Roman")
+
+knitr::kable(residuals, align = "cc") %>% 
+  kable_classic_2(full_width = F, html_font = "Times New Roman")
+```
+
+```{r question 2 figures}
+residuals_plot <- residuals %>% 
+  as_data_frame() %>% 
+  mutate(Treatment = c("Exclusion", "Ambient", "Irrigation")) %>% 
+  pivot_longer(1:2, names_to = "Flowering", values_to = "Residuals") 
+
+residuals_final <- ggplot(residuals_plot) + 
+  aes(x = Treatment, y = Residuals, fill = Flowering) + 
+  geom_col(position = "dodge") + 
+  geom_hline(yintercept = c(-1.96,1.96), lty = "dotted") + 
+  labs(y = "Pearson Residuals") +
+  theme_bw()+
+  theme(text = element_text(family = "Times New Roman", size = 14))+
+  scale_fill_manual("Flowering", values = c("Flowering" = "orchid", "Not Flowering" = "lavenderblush2"))
+
+barplot <- ggplot(final_water) +
+  geom_col(aes(x = c("Exclusion", "Ambient", "Irrigation"), 
+               y = flower_rate), fill = c("antiquewhite2", "lightblue1", "deepskyblue")) +
+  geom_text(aes(x = "Exclusion", y = 0.23, label = "*")) +
+  geom_text(aes(x = "Irrigation", y = 0.9, label = "*"))+
+  theme_bw()+
+  theme(text = element_text(family = "Times New Roman", size = 14))+
+  labs(x = "Treatment", y = "Flowering Proportion")
+
+residuals_final + barplot
+```
+
+# How was the number of flowers of Salvia mellifera different amongst the exclusion, ambient, and irrigated treatments?
+
+```{r question 3 reformatting}
+flower_count <- data %>%
+  filter(Species_Code == "SALMEL", Survey_Season == "May2021", AliveMissingDead == "A") %>% 
+  select(-Date, -Team, -Block, -Plot, -Plant_Number, -Species_Code, -Group_Number, -Height_cm, -Width_cm, -Notes, -AliveMissingDead, -DripRow, -BufferZone, -Survey_Season, -PositionID, -Veg_State, -Replaced, -Seed_Source) %>% 
+  filter(Flowering == "Flowering") %>% 
+  select(-Flowering)
+```
+
+```{r question 3 assumption/normality test}
+shapiro.test(flower_count$Number_Flowers)
+
+ggplot(flower_count, aes(Number_Flowers))+
+  geom_histogram()
+
+bartlett.test(Number_Flowers ~ Treatment, data = flower_count)
+
+ggplot(flower_count)+
+  geom_boxplot(aes(x = Treatment, y = Number_Flowers))
+```
+
+```{r question 3 summary statistics}
+exclusion_count <- flower_count %>% 
+  filter(Treatment == "exclusion") %>% 
+  summarise(Mean = mean(Number_Flowers), 
+            Median = median(Number_Flowers), 
+            Standard_Deviation = sd(Number_Flowers), 
+            Samples = n(), 
+            Standard_Error = sd(Number_Flowers/sqrt(Samples)))
+exclusion_count
+
+ambient_count <- flower_count %>% 
+  filter(Treatment == "ambient") %>% 
+  summarise(Mean = mean(Number_Flowers), 
+            Median = median(Number_Flowers), 
+            Standard_Deviation = sd(Number_Flowers), 
+            Samples = n(), 
+            Standard_Error = sd(Number_Flowers/sqrt(Samples)))
+ambient_count
+
+irrigation_count <- flower_count %>% 
+  filter(Treatment == "irrigation") %>% 
+  summarise(Mean = mean(Number_Flowers), 
+            Median = median(Number_Flowers), 
+            Standard_Deviation = sd(Number_Flowers), 
+            Samples = n(), 
+            Standard_Error = sd(Number_Flowers/sqrt(Samples)))
+irrigation_count
+
+count_table <- rbind(exclusion_count, ambient_count, irrigation_count)
+count_table$rownames <- c("Exclusion", "Ambient", "Irrigation")
+count_final <- column_to_rownames(count_table, var = "rownames")
+count_final
+
+knitr::kable(count_final, col.names = c("Mean", "Median", "SD", "Samples", "SE"), align = "ccccc") %>% 
+  kable_classic_2(full_width = F, html_font = "Times New Roman")
+```
+
+```{r question 3 test}
+test3 <- kruskal.test(Number_Flowers ~ Treatment, flower_count)
+test3
+
+effsize <- flower_count %>% 
+  kruskal_effsize(Number_Flowers ~ Treatment) %>% 
+  select(-.y., - method)
+
+knitr::kable(effsize, col.names = c('Samples', "Effect Size", "Magnitude"), align = "c") %>% 
+  kable_classic_2(full_width = F, html_font = "Times New Roman")
+
+pairwise <- flower_count %>% 
+  dunn_test(Number_Flowers ~ Treatment, p.adjust.method = "bonferroni") %>%  mutate_at(vars(p.adj),
+            .funs= round, 5) %>% 
+  select(-.y.)
+
+knitr::kable(pairwise, col.names=c('Treatment 1', 'Treatment 2', 'Samples 1', 'Samples 2', '$\\textit{H}$', '$\\textit{p}$', '$\\textit{p}$-adjusted', 'Significance' ), align = "c") %>% 
+  kable_classic_2(full_width = F, html_font = "Times New Roman")
+```
+
+```{r question 3 figure}
+colors <- c("lightblue1", "antiquewhite2", "deepskyblue")
+boxplot <- ggplot(flower_count, aes(x = Treatment, y = Number_Flowers))+
+  geom_boxplot(fill = colors)+
+  labs(y = "Flower Abundance")
+my_comparisons <- list( c("Ambient", "Exclusion"), c("Exclusion", "Irrigation"), c("Ambient", "Irrigation") )
+q3_plot <- 
+  boxplot +  stat_pvalue_manual(pairwise, label = "p.adj.signif", family = "Times New Roman", y.position = c(10000, 18000, 22000)) +
+  stat_compare_means(label.y = 24000, label.x = 1.8, family = "Times New Roman")
+q3_plot + 
+  theme_bw()+
+  scale_x_discrete(name = "Treatment", labels = c("Ambient", "Exclusion", "Irrigation"))+
+  theme(text = element_text(family = "Times New Roman", size = 17))
+```
+
